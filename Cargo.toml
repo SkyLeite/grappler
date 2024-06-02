@@ -1,6 +1,6 @@
 [package]
 name = "grappler"
-version = "0.1.3"
+version = "0.1.4"
 description = "Easy-to-use function hooking through proc-macros"
 license.workspace = true
 edition.workspace = true
@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/SkyLeite/grappler"
@@ -23,8 +23,8 @@ authors = [
 ]
 
 [dependencies]
-grappler-core = { path = "./grappler-core", version = "0.1.3" }
-grappler-macros = { path = "./grappler-macros", version = "0.1.3" }
+grappler-core = { path = "./grappler-core", version = "0.1.4" }
+grappler-macros = { path = "./grappler-macros", version = "0.1.4" }
 
 [dev-dependencies]
 trybuild = "1.0.96"

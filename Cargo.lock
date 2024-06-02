@@ -104,7 +104,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "grappler"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "grappler-core",
  "grappler-macros",
@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "grappler-core"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "retour",
  "skidscan",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "grappler-macros"
-version = "0.1.3"
+version = "0.1.4"
 dependencies = [
  "Inflector",
  "darling",
