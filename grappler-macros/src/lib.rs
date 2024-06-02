@@ -87,6 +87,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         #[doc(hidden)]
         mod #mod_name {
             use std::str::FromStr;
+            use super::*;
 
             grappler::core::static_detour! {
                 pub static #retour_fn_name: #fn_sig;
@@ -106,7 +107,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     let pointer = unsafe { std::mem::transmute(address) };
 
                     unsafe {
-                        #retour_fn_name.initialize(pointer, super::#new_fn_name).unwrap().enable().unwrap();
+                        #retour_fn_name.initialize(pointer, #new_fn_name).unwrap().enable().unwrap();
                     }
                 }
 
