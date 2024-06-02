@@ -81,11 +81,11 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let tokens = quote! {
+        #new_fn
+
         #[doc(hidden)]
         mod #mod_name {
             use std::str::FromStr;
-
-            #new_fn
 
             grappler::core::static_detour! {
                 pub static #retour_fn_name: #fn_sig;
@@ -105,7 +105,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     let pointer = unsafe { std::mem::transmute(address) };
 
                     unsafe {
-                        #retour_fn_name.initialize(pointer, #new_fn_name).unwrap().enable().unwrap();
+                        #retour_fn_name.initialize(pointer, super::#new_fn_name).unwrap().enable().unwrap();
                     }
                 }
 
@@ -119,7 +119,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
-        #[allow(non_upper_case_globals)] const #name: #spanned_struct = #spanned_struct {};
+        #[allow(non_upper_case_globals)] pub const #name: #spanned_struct = #spanned_struct {};
     };
 
     TokenStream::from(tokens)
