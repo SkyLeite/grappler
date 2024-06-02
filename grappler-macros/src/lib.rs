@@ -107,7 +107,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     let pointer = unsafe { std::mem::transmute(address) };
 
                     unsafe {
-                        #retour_fn_name.initialize(pointer, #new_fn_name).unwrap().enable().unwrap();
+                        #retour_fn_name.initialize(pointer, |#(#input_names),*| #new_fn_name(#(#input_names),*)).unwrap().enable().unwrap();
                     }
                 }
 
