@@ -113,7 +113,7 @@ dependencies = [
 
 [[package]]
 name = "grappler-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "retour",
  "skidscan",
@@ -121,7 +121,7 @@ dependencies = [
 
 [[package]]
 name = "grappler-macros"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "Inflector",
  "darling",
