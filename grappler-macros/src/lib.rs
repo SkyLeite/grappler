@@ -48,7 +48,9 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let spanned_struct = quote! {
         #mod_name::#struct_name
     };
+
     let retour_fn_name = format_ident!("__{}Retour", name);
+    let retour_fn_abi = &input.sig.abi;
 
     let mut new_fn = input.clone();
     new_fn.sig.ident = format_ident!("__{}_original", name);
@@ -90,7 +92,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             use super::*;
 
             grappler::core::static_detour! {
-                pub static #retour_fn_name: #fn_sig;
+                pub static #retour_fn_name: #retour_fn_abi #fn_sig;
             }
 
             pub struct #struct_name;

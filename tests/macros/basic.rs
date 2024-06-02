@@ -53,6 +53,6 @@ pub fn can_use_extern_attribute() {
     mod test {
         #[allow(unsupported_calling_conventions)]
         #[grappler::hook(signature = "AB CD")]
-        pub extern "fastcall" fn foo() {}
+        pub extern "fastcall" fn foo_fastcall() {}
     }
 }
