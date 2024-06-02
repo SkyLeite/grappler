@@ -1,6 +1,6 @@
 [package]
 name = "grappler"
-version = "0.1.1"
+version = "0.1.2"
 description = "Easy-to-use function hooking through proc-macros"
 license.workspace = true
 edition.workspace = true
@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "GPL-3.0-only"
 repository = "https://github.com/SkyLeite/grappler"
