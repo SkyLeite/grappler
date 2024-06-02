@@ -1,0 +1,7 @@
+error: custom attribute panicked
+ --> tests/macros/signature-no-known-bytes-fail.rs:1:1
+  |
+1 | #[grappler::hook(signature = "?? ?? ??")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: Signature must contain at least one known byte

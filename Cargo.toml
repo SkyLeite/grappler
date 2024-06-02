@@ -1,0 +1,29 @@
+[package]
+name = "grappler"
+version = "0.1.0"
+license.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[workspace]
+members = [ 
+  "grappler-macros",
+  "grappler-core"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPLv3"
+repository = "https://github.com/SkyLeite/grappler"
+authors = [
+  "Sky Leite <sky@leite.dev>"
+]
+
+[dependencies]
+grappler-core = { path = "./grappler-core", version = "0.1.0" }
+grappler-macros = { path = "./grappler-macros", version = "0.1.0" }
+
+[dev-dependencies]
+trybuild = "1.0.96"

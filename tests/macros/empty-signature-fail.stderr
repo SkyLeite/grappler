@@ -1,0 +1,7 @@
+error: custom attribute panicked
+ --> tests/macros/empty-signature-fail.rs:1:1
+  |
+1 | #[grappler::hook(signature = "")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = help: message: Signature cannot be empty
