@@ -1,6 +1,6 @@
 [package]
 name = "grappler-core"
-version = "0.1.1"
+version = "0.1.2"
 description = "Core implementation of the `grappler` crate."
 edition.workspace = true
 license.workspace = true
