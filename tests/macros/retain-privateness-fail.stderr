@@ -1,0 +1,12 @@
+error[E0603]: constant `foo` is private
+ --> tests/macros/retain-privateness-fail.rs:7:22
+  |
+7 |     let _bar = test::foo;
+  |                      ^^^ private constant
+  |
+note: the constant `foo` is defined here
+ --> tests/macros/retain-privateness-fail.rs:2:5
+  |
+2 |     #[grappler::hook(signature = "AB CD")]
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = note: this error originates in the attribute macro `grappler::hook` (in Nightly builds, run with -Z macro-backtrace for more info)

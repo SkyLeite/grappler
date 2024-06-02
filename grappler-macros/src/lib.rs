@@ -40,6 +40,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     }
 
     let name = &input.sig.ident;
+    let fn_vis = &input.vis;
     let inputs = &input.sig.inputs;
     let output = &input.sig.output;
     let mod_name = format_ident!("__{}", name);
@@ -119,7 +120,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
 
-        #[allow(non_upper_case_globals)] pub const #name: #spanned_struct = #spanned_struct {};
+        #[allow(non_upper_case_globals)] #fn_vis const #name: #spanned_struct = #spanned_struct {};
     };
 
     TokenStream::from(tokens)
