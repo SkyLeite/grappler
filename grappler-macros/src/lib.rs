@@ -56,6 +56,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     new_fn.sig.ident = format_ident!("__{}_original", name);
 
     let new_fn_name = &new_fn.sig.ident;
+    let new_fn_name_str = &new_fn.sig.ident.to_string();
 
     let input_types: Vec<_> = inputs
         .iter()
@@ -109,7 +110,10 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     let pointer = unsafe { std::mem::transmute(address) };
 
                     unsafe {
-                        #retour_fn_name.initialize(pointer, |#(#input_names),*| #new_fn_name(#(#input_names),*)).unwrap().enable().unwrap();
+                        #retour_fn_name.initialize(pointer, |#(#input_names),*| {
+                            grappler::core::trace!("Executing hook: {}", #new_fn_name_str);
+                            #new_fn_name(#(#input_names),*)
+                        }).unwrap().enable().unwrap();
                     }
                 }
 

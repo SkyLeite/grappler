@@ -1,6 +1,6 @@
 [package]
 name = "grappler-macros"
-version = "0.1.4"
+version = "0.1.6"
 description = "Macros of the `grappler` crate."
 license.workspace = true
 edition.workspace = true
@@ -11,7 +11,7 @@ repository.workspace = true
 proc-macro = true
 
 [dependencies]
-grappler-core = { path = "../grappler-core", version = "0.1.4" }
+grappler-core = { path = "../grappler-core", version = "0.1.6" }
 Inflector = "0.11.4"
 darling = "0.20.9"
 quote = "1.0.36"
