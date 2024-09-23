@@ -1,6 +1,6 @@
 [package]
 name = "grappler"
-version = "0.1.6"
+version = "0.1.7"
 description = "Easy-to-use function hooking through proc-macros"
 license.workspace = true
 edition.workspace = true
@@ -23,8 +23,8 @@ authors = [
 ]
 
 [dependencies]
-grappler-core = { path = "./grappler-core", version = "0.1.6" }
-grappler-macros = { path = "./grappler-macros", version = "0.1.6" }
+grappler-core = { path = "./grappler-core", version = "0.1.7" }
+grappler-macros = { path = "./grappler-macros", version = "0.1.7" }
 
 [dev-dependencies]
 trybuild = "1.0.96"
