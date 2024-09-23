@@ -117,6 +117,17 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
 
+                pub fn initialize_ptr(&self, ptr: *mut u8) {
+                    let pointer = unsafe { std::mem::transmute(ptr) };
+
+                    unsafe {
+                        #retour_fn_name.initialize(pointer, |#(#input_names),*| {
+                            grappler::core::trace!("Executing hook: {}", #new_fn_name_str);
+                            #new_fn_name(#(#input_names),*)
+                        }).unwrap().enable().unwrap();
+                    }
+                }
+
                 pub fn call_original(&self, #inputs) #output {
                     #retour_fn_name.call(#(#input_names),*)
                 }
