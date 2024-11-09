@@ -1,6 +1,6 @@
 [package]
 name = "grappler-core"
-version = "0.1.8"
+version = "0.1.9"
 description = "Core implementation of the `grappler` crate."
 edition.workspace = true
 license.workspace = true
@@ -8,6 +8,6 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-retour = { git = "https://github.com/Hpmason/retour-rs.git", features = ["static-detour", "28-args"], version = "0.4.0-alpha.3" }
+retour = { git = "https://github.com/Hpmason/retour-rs.git", features = ["static-detour", "28-args", "thiscall-abi", "nightly"], version = "0.4.0-alpha.3" }
 skidscan = "2.0.1"
 tracing = "0.1.40"
