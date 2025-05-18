@@ -8,7 +8,8 @@ use syn::{parse_macro_input, ItemFn, Pat};
 
 #[derive(Debug, FromMeta)]
 struct MacroArgs {
-    signature: String,
+    signature: Option<String>,
+    offset: Option<usize>,
 }
 
 #[proc_macro_attribute]
@@ -28,16 +29,6 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             return TokenStream::from(e.write_errors());
         }
     };
-
-    let signature = _args.signature;
-
-    if signature.len() < 1 {
-        panic!("Signature cannot be empty");
-    }
-
-    if signature.replace(" ", "").replace("?", "").len() < 1 {
-        panic!("Signature must contain at least one known byte");
-    }
 
     let name = &input.sig.ident;
     let fn_vis = &input.vis;
@@ -84,12 +75,59 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         fn(#(#input_types),*) #output
     };
 
+    let address_fn = if let Some(ref signature) = _args.signature {
+        if signature.len() < 1 {
+            panic!("Signature cannot be empty");
+        }
+
+        if signature.replace(" ", "").replace("?", "").len() < 1 {
+            panic!("Signature must contain at least one known byte");
+        }
+
+        quote! {
+            grappler::core::Signature::from_str(#signature)
+                .map(|sig| sig.scan_module(std::env::current_exe().unwrap().file_name().unwrap().to_str().unwrap()))
+                .unwrap()
+                .unwrap()
+        }
+    } else if let Some(ref offset) = _args.offset {
+        quote! {
+            let this_proc = grappler::core::poggers::structures::process::Process::this_process();
+            let base_module = this_proc.get_base_module().unwrap();
+            let base_addr = base_module.get_base_address();
+            (#offset + base_addr) as *mut u8
+        }
+    } else {
+        panic!("Must provide either signature or offset");
+    };
+
+    let maybe_signature = if let Some(signature) = _args.signature {
+        quote! {
+            Some(#signature)
+        }
+    } else {
+        quote! {
+            None
+        }
+    };
+
+    let maybe_offset = if let Some(offset) = _args.offset {
+        quote! {
+            Some(#offset)
+        }
+    } else {
+        quote! {
+            None
+        }
+    };
+
     let tokens = quote! {
         #new_fn
 
         #[doc(hidden)]
         mod #mod_name {
             use std::str::FromStr;
+            use grappler::core::poggers::structures::process::implement::utils::ProcessUtils as _;
             use super::*;
 
             grappler::core::static_detour! {
@@ -101,10 +139,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             impl #struct_name {
                 pub fn initialize(&self) {
                     let address = unsafe {
-                        grappler::core::Signature::from_str(#signature)
-                            .map(|sig| sig.scan_module(std::env::current_exe().unwrap().file_name().unwrap().to_str().unwrap()))
-                            .unwrap()
-                            .unwrap()
+                        #address_fn
                     };
 
                     let pointer = unsafe { std::mem::transmute(address) };
@@ -132,8 +167,12 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     #retour_fn_name.call(#(#input_names),*)
                 }
 
-                pub fn signature(&self) -> &str {
-                    #signature
+                pub fn signature(&self) -> Option<&str> {
+                    #maybe_signature.into()
+                }
+
+                pub fn offset(&self) -> Option<usize> {
+                    #maybe_offset
                 }
             }
         }

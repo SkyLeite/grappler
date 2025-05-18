@@ -25,7 +25,7 @@ pub fn signature_matches() {
         pub fn foo() {}
     }
 
-    assert_eq!(test::foo.signature(), "AB ?? CD");
+    assert_eq!(test::foo.signature(), Some("AB ?? CD"));
 }
 
 #[allow(dead_code)]
@@ -55,4 +55,24 @@ pub fn can_use_extern_attribute() {
         #[grappler::hook(signature = "AB CD")]
         pub extern "fastcall" fn foo_fastcall() {}
     }
+}
+
+#[test]
+pub fn can_supply_offset() {
+    mod test {
+        #[grappler::hook(offset = 0x10)]
+        pub fn foo() {}
+    }
+
+    assert_eq!(1, 1)
+}
+
+#[test]
+pub fn offset_matches() {
+    mod test {
+        #[grappler::hook(offset = 0x10)]
+        pub fn foo() {}
+    }
+
+    assert_eq!(test::foo.offset(), Some(0x10));
 }
