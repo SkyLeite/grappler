@@ -51,7 +51,7 @@ pub fn has_same_scope_as_original_fn() {
 #[test]
 pub fn can_use_extern_attribute() {
     mod test {
-        #[allow(unsupported_calling_conventions)]
+        #![allow(unsupported_calling_conventions)]
         #[grappler::hook(signature = "AB CD")]
         pub extern "fastcall" fn foo_fastcall() {}
     }
