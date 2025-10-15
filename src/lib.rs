@@ -1,9 +1,11 @@
 pub use grappler_core as core;
-use grappler_core::poggers::structures::process::implement::utils::ProcessUtils;
 pub use grappler_macros::hook;
 
 pub fn write_at_offset(data: &[u8], offset: usize) -> Result<(), Box<dyn std::error::Error>> {
     use core::poggers::structures::process::Process;
+    use core::poggers::structures::{
+        process::implement::utils::ProcessUtils, protections::Protections,
+    };
     use core::poggers::traits::Mem;
     let process = Process::this_process();
     let module = process.get_base_module()?;
@@ -22,4 +24,6 @@ pub fn write_at_offset(data: &[u8], offset: usize) -> Result<(), Box<dyn std::er
         process.write_raw(address, &data)?;
         process.alter_protection(address, data.len(), Protections::ExecuteRead)?;
     }
+
+    Ok(())
 }
