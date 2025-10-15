@@ -1,12 +1,14 @@
 pub use grappler_core as core;
 pub use grappler_macros::hook;
 
+#[cfg(target_os = "windows")]
 pub fn write_at_offset(data: &[u8], offset: usize) -> Result<(), Box<dyn std::error::Error>> {
     use core::poggers::structures::process::Process;
     use core::poggers::structures::{
         process::implement::utils::ProcessUtils, protections::Protections,
     };
     use core::poggers::traits::Mem;
+    use std::ops::Add;
     let process = Process::this_process();
     let module = process.get_base_module()?;
     let base_address = module.get_base_address();
