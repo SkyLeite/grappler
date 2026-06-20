@@ -4,7 +4,7 @@ use darling::{ast::NestedMeta, Error, FromMeta};
 use inflector::Inflector;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, ItemFn, Pat};
+use syn::{parse_macro_input, ItemFn};
 
 #[derive(Debug, FromMeta)]
 struct MacroArgs {
@@ -57,18 +57,14 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         })
         .collect();
 
-    let input_names: Vec<_> = inputs
-        .iter()
-        .filter_map(|arg| match arg {
-            syn::FnArg::Typed(pat_type) => {
-                if let Pat::Ident(pat_ident) = &*pat_type.pat {
-                    Some(&pat_ident.ident)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        })
+    // Synthesize a positional name for every parameter instead of reusing the
+    // source patterns. The detour closure and call_original forward arguments
+    // by position, so binding `__arg0..__argN` works for parameters the source
+    // writes as `_`, `mut x`, or a destructuring pattern — cases where reading
+    // the original `Pat::Ident` would silently drop the argument and leave the
+    // generated closure with fewer parameters than the detour signature.
+    let input_names: Vec<_> = (0..input_types.len())
+        .map(|i| format_ident!("__arg{}", i))
         .collect();
 
     let fn_sig = quote! {
@@ -163,7 +159,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                     }
                 }
 
-                pub fn call_original(&self, #inputs) #output {
+                pub fn call_original(&self, #(#input_names: #input_types),*) #output {
                     #retour_fn_name.call(#(#input_names),*)
                 }
 
