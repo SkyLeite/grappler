@@ -81,15 +81,17 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         }
 
         quote! {
-            grappler::core::Signature::from_str(#signature)
-                .map(|sig| sig.scan_module(std::env::current_exe().unwrap().file_name().unwrap().to_str().unwrap()))
-                .unwrap()
-                .unwrap()
+            let exe = std::env::current_exe()?;
+            let module_name = exe
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or("hook: current executable has no valid UTF-8 file name")?;
+            grappler::core::Signature::from_str(#signature)?.scan_module(module_name)?
         }
     } else if let Some(ref offset) = _args.offset {
         quote! {
             let this_proc = grappler::core::poggers::structures::process::Process::this_process();
-            let base_module = this_proc.get_base_module().unwrap();
+            let base_module = this_proc.get_base_module()?;
             let base_addr = base_module.get_base_address();
             (#offset + base_addr) as *mut u8
         }
@@ -133,7 +135,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             pub struct #struct_name;
 
             impl #struct_name {
-                pub fn initialize(&self) {
+                pub fn initialize(&self) -> Result<(), Box<dyn std::error::Error>> {
                     let address = unsafe {
                         #address_fn
                     };
@@ -144,19 +146,23 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                         #retour_fn_name.initialize(pointer, |#(#input_names),*| {
                             grappler::core::trace!("Executing hook: {}", #new_fn_name_str);
                             #new_fn_name(#(#input_names),*)
-                        }).unwrap().enable().unwrap();
+                        })?.enable()?;
                     }
+
+                    Ok(())
                 }
 
-                pub fn initialize_ptr(&self, ptr: *mut u8) {
+                pub fn initialize_ptr(&self, ptr: *mut u8) -> Result<(), Box<dyn std::error::Error>> {
                     let pointer = unsafe { std::mem::transmute(ptr) };
 
                     unsafe {
                         #retour_fn_name.initialize(pointer, |#(#input_names),*| {
                             grappler::core::trace!("Executing hook: {}", #new_fn_name_str);
                             #new_fn_name(#(#input_names),*)
-                        }).unwrap().enable().unwrap();
+                        })?.enable()?;
                     }
+
+                    Ok(())
                 }
 
                 pub fn call_original(&self, #(#input_names: #input_types),*) #output {
