@@ -16,6 +16,15 @@ struct MacroArgs {
     module: Option<String>,
 }
 
+/// Render an `Option<T>` as the tokens `Some(value)` or `None`, used to embed
+/// the configured signature/offset back into the generated accessors.
+fn option_tokens<T: quote::ToTokens>(opt: Option<T>) -> proc_macro2::TokenStream {
+    match opt {
+        Some(value) => quote! { Some(#value) },
+        None => quote! { None },
+    }
+}
+
 #[proc_macro_attribute]
 pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let attr_args = match NestedMeta::parse_meta_list(args.into()) {
@@ -143,25 +152,8 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         unreachable!("a missing signature and offset was rejected above");
     };
 
-    let maybe_signature = if let Some(signature) = _args.signature {
-        quote! {
-            Some(#signature)
-        }
-    } else {
-        quote! {
-            None
-        }
-    };
-
-    let maybe_offset = if let Some(offset) = _args.offset {
-        quote! {
-            Some(#offset)
-        }
-    } else {
-        quote! {
-            None
-        }
-    };
+    let maybe_signature = option_tokens(_args.signature.as_deref());
+    let maybe_offset = option_tokens(_args.offset);
 
     let tokens = quote! {
         #new_fn
@@ -184,20 +176,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                         #address_fn
                     };
 
-                    if address == 0 {
-                        return Err("hook: resolved a null target address".into());
-                    }
-
-                    let pointer = unsafe { std::mem::transmute(address) };
-
-                    unsafe {
-                        #retour_fn_name.initialize(pointer, |#(#input_names),*| {
-                            grappler::core::trace!("Executing hook: {}", #new_fn_name_str);
-                            #new_fn_name(#(#input_names),*)
-                        })?.enable()?;
-                    }
-
-                    Ok(())
+                    self.initialize_ptr(address as *mut u8)
                 }
 
                 pub fn initialize_ptr(&self, ptr: *mut u8) -> Result<(), Box<dyn std::error::Error>> {
