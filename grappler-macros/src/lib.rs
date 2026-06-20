@@ -34,6 +34,39 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
+    // Validate the attribute up front and surface problems as proper spanned
+    // compiler errors rather than panicking (a macro panic produces an opaque
+    // "custom attribute panicked" diagnostic with no useful span).
+    macro_rules! bail {
+        ($msg:expr) => {
+            return syn::Error::new_spanned(&input, $msg)
+                .to_compile_error()
+                .into()
+        };
+    }
+
+    if input
+        .sig
+        .inputs
+        .iter()
+        .any(|arg| matches!(arg, syn::FnArg::Receiver(_)))
+    {
+        bail!("#[hook] cannot be applied to a function that takes `self`");
+    }
+
+    match (&_args.signature, &_args.offset) {
+        (None, None) => bail!("#[hook] requires either a `signature` or an `offset` argument"),
+        (Some(signature), _) => {
+            if signature.is_empty() {
+                bail!("Signature cannot be empty");
+            }
+            if signature.replace([' ', '?'], "").is_empty() {
+                bail!("Signature must contain at least one known byte");
+            }
+        }
+        (None, Some(_)) => {}
+    }
+
     let name = &input.sig.ident;
     let fn_vis = &input.vis;
     let inputs = &input.sig.inputs;
@@ -53,11 +86,13 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let new_fn_name = &new_fn.sig.ident;
     let new_fn_name_str = &new_fn.sig.ident.to_string();
 
+    // Receivers (`self`) were rejected above, so every remaining argument is
+    // a typed parameter.
     let input_types: Vec<_> = inputs
         .iter()
-        .map(|arg| match arg {
-            syn::FnArg::Typed(pat_type) => &*pat_type.ty,
-            _ => panic!("Unexpected argument type"),
+        .filter_map(|arg| match arg {
+            syn::FnArg::Typed(pat_type) => Some(&*pat_type.ty),
+            syn::FnArg::Receiver(_) => None,
         })
         .collect();
 
@@ -75,15 +110,9 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         fn(#(#input_types),*) #output
     };
 
+    // Argument validity (empty/known-byte signature, presence of a source) was
+    // checked above, so the branches below are exhaustive.
     let address_fn = if let Some(ref signature) = _args.signature {
-        if signature.len() < 1 {
-            panic!("Signature cannot be empty");
-        }
-
-        if signature.replace(" ", "").replace("?", "").len() < 1 {
-            panic!("Signature must contain at least one known byte");
-        }
-
         let resolve_module = if let Some(ref module) = _args.module {
             quote! { let module_name = #module; }
         } else {
@@ -111,7 +140,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                 .ok_or("hook: offset resolves outside the base module")?
         }
     } else {
-        panic!("Must provide either signature or offset");
+        unreachable!("a missing signature and offset was rejected above");
     };
 
     let maybe_signature = if let Some(signature) = _args.signature {
