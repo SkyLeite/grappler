@@ -105,7 +105,10 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             let this_proc = grappler::core::poggers::structures::process::Process::this_process();
             let base_module = this_proc.get_base_module()?;
             let base_addr = base_module.get_base_address();
-            (#offset + base_addr) as *mut u8
+            base_addr
+                .checked_add(#offset)
+                .filter(|addr| *addr < base_module.get_end_address())
+                .ok_or("hook: offset resolves outside the base module")?
         }
     } else {
         panic!("Must provide either signature or offset");
@@ -152,6 +155,10 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                         #address_fn
                     };
 
+                    if address == 0 {
+                        return Err("hook: resolved a null target address".into());
+                    }
+
                     let pointer = unsafe { std::mem::transmute(address) };
 
                     unsafe {
@@ -165,6 +172,10 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                 }
 
                 pub fn initialize_ptr(&self, ptr: *mut u8) -> Result<(), Box<dyn std::error::Error>> {
+                    if ptr.is_null() {
+                        return Err("hook: cannot install a hook over a null pointer".into());
+                    }
+
                     let pointer = unsafe { std::mem::transmute(ptr) };
 
                     unsafe {
