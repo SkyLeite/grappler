@@ -371,29 +371,40 @@ pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
     // Emit the trampoline matching the selected ilhook routine and pick the
     // corresponding HookType. A redirect trampoline forwards the original
     // continuation address and returns the handler's chosen jump target.
+    // ilhook's routine ABI is architecture-specific (win64 on x86_64, cdecl on
+    // x86). A proc-macro can't see the *target* arch, so emit a cfg-gated pair
+    // of identical trampolines and let the build pick one.
     let (trampoline, hook_type) = if redirect {
+        let body = quote! {
+            grappler::core::trace!("Executing mid hook: {}", #trace_label);
+            #handler_name(unsafe { &mut *regs }, ori_func_ptr)
+        };
         (
             quote! {
+                #[cfg(target_arch = "x86_64")]
                 unsafe extern "win64" fn #trampoline_name(
-                    regs: *mut Registers,
-                    ori_func_ptr: usize,
-                    _user_data: usize,
-                ) -> usize {
-                    grappler::core::trace!("Executing mid hook: {}", #trace_label);
-                    #handler_name(unsafe { &mut *regs }, ori_func_ptr)
-                }
+                    regs: *mut Registers, ori_func_ptr: usize, _extra: usize,
+                ) -> usize { #body }
+                #[cfg(target_arch = "x86")]
+                unsafe extern "cdecl" fn #trampoline_name(
+                    regs: *mut Registers, ori_func_ptr: usize, _extra: usize,
+                ) -> usize { #body }
             },
-            quote! { grappler::core::ilhook::x64::HookType::JmpToRet(#trampoline_name) },
+            quote! { grappler::core::ilhook_arch::HookType::JmpToRet(#trampoline_name) },
         )
     } else {
+        let body = quote! {
+            grappler::core::trace!("Executing mid hook: {}", #trace_label);
+            #handler_name(unsafe { &mut *regs });
+        };
         (
             quote! {
-                unsafe extern "win64" fn #trampoline_name(regs: *mut Registers, _user_data: usize) {
-                    grappler::core::trace!("Executing mid hook: {}", #trace_label);
-                    #handler_name(unsafe { &mut *regs });
-                }
+                #[cfg(target_arch = "x86_64")]
+                unsafe extern "win64" fn #trampoline_name(regs: *mut Registers, _user_data: usize) { #body }
+                #[cfg(target_arch = "x86")]
+                unsafe extern "cdecl" fn #trampoline_name(regs: *mut Registers, _user_data: usize) { #body }
             },
-            quote! { grappler::core::ilhook::x64::HookType::JmpBack(#trampoline_name) },
+            quote! { grappler::core::ilhook_arch::HookType::JmpBack(#trampoline_name) },
         )
     };
 
@@ -417,12 +428,12 @@ pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
                         #address_fn
                     };
 
-                    let hooker = grappler::core::ilhook::x64::Hooker::new(
+                    let hooker = grappler::core::ilhook_arch::Hooker::new(
                         address,
                         #hook_type,
-                        grappler::core::ilhook::x64::CallbackOption::None,
+                        grappler::core::ilhook_arch::CallbackOption::None,
                         0,
-                        grappler::core::ilhook::x64::HookFlags::empty(),
+                        grappler::core::ilhook_arch::HookFlags::empty(),
                     );
 
                     let hook_point = unsafe { hooker.hook()? };

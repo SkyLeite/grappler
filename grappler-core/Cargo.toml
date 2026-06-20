@@ -8,8 +8,18 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-ilhook = "2.3.0"
 poggers = "1.2.1"
-retour = { version = "0.4.0-alpha.4", features = ["static-detour", "28-args"] }
+# thiscall-abi is cfg-gated to x86 in retour, so it's inert on x86_64 and adds
+# thiscall hooking (common for C++ member functions) on 32-bit.
+retour = { version = "0.4.0-alpha.4", features = ["static-detour", "28-args", "thiscall-abi"] }
 skidscan = "2.0.1"
 tracing = "0.1.40"
+
+# ilhook gates its per-architecture modules behind the x64/x86 features (both on
+# by default), and the x64 module uses `extern "win64"` which won't compile on a
+# 32-bit target. Pull only the module matching the build architecture.
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+ilhook = { version = "2.3.0", default-features = false, features = ["x64"] }
+
+[target.'cfg(target_arch = "x86")'.dependencies]
+ilhook = { version = "2.3.0", default-features = false, features = ["x86"] }

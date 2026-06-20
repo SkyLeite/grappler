@@ -51,10 +51,11 @@ pub fn has_same_scope_as_original_fn() {
 #[test]
 pub fn can_use_extern_attribute() {
     mod test {
-        // win64 is the x86_64 calling convention retour implements; fastcall /
-        // stdcall / thiscall are x86-only.
+        // `system` is implemented by retour on every target (stdcall on x86,
+        // win64 on x86_64); arch-specific conventions like fastcall/win64 only
+        // exist on one architecture.
         #[grappler::hook(signature = "AB CD")]
-        pub extern "win64" fn foo_winapi() {}
+        pub extern "system" fn foo_system() {}
     }
 }
 
@@ -103,7 +104,7 @@ pub fn mid_hook_by_offset() {
     mod test {
         #[grappler::mid_hook(offset = 0x20)]
         pub fn my_mid(regs: &mut grappler::Registers) {
-            regs.rax = 1337;
+            let _ = regs;
         }
     }
 
@@ -127,7 +128,7 @@ pub fn mid_hook_redirect_returns_address() {
     mod test {
         #[grappler::mid_hook(offset = 0x30)]
         pub fn my_redirect(regs: &mut grappler::Registers, original: usize) -> usize {
-            regs.rax = 0;
+            let _ = regs;
             original
         }
     }
