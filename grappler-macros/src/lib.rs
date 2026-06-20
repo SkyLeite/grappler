@@ -263,14 +263,26 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
 /// Install a mid-function hook at an arbitrary in-body address.
 ///
 /// Unlike `#[hook]`, the annotated function is a *handler* that receives the
-/// captured CPU register state and resumes the original code afterwards — there
-/// is no original function to call. It must take exactly one argument, a
-/// `&mut grappler::Registers`, and return nothing:
+/// captured CPU register state — there is no original function to call. The
+/// handler's signature selects the behaviour:
+///
+/// * `fn(&mut grappler::Registers)` — inspect/modify registers, then resume the
+///   original code.
+/// * `fn(&mut grappler::Registers, original: usize) -> usize` — redirect control
+///   flow: `original` is the address the original code would continue at, and
+///   the returned address is jumped to instead (return `original` to resume).
 ///
 /// ```ignore
+/// // Resume after tweaking a register.
 /// #[grappler::mid_hook(offset = 0x1234)]
 /// fn my_hook(regs: &mut grappler::Registers) {
 ///     regs.rax = 1337;
+/// }
+///
+/// // Conditionally redirect.
+/// #[grappler::mid_hook(offset = 0x2000)]
+/// fn my_redirect(regs: &mut grappler::Registers, original: usize) -> usize {
+///     if regs.rcx == 0 { SOMEWHERE_ELSE } else { original }
 /// }
 ///
 /// my_hook.initialize()?;
@@ -300,18 +312,35 @@ pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
         return err.into();
     }
 
-    // The handler is the destination called with the register context, so it
-    // must take exactly one argument (`&mut Registers`) and no receiver.
-    if handler.sig.inputs.len() != 1
-        || matches!(handler.sig.inputs.first(), Some(syn::FnArg::Receiver(_)))
-    {
-        return syn::Error::new_spanned(
-            &handler.sig,
-            "#[mid_hook] handler must take exactly one argument: `&mut grappler::Registers`",
-        )
-        .to_compile_error()
-        .into();
-    }
+    // The handler shape selects the hook kind:
+    //   fn(&mut Registers)                       -> resume   (JmpBack)
+    //   fn(&mut Registers, original: usize) -> usize -> redirect (JmpToRet)
+    // A redirect handler receives the original continuation address and returns
+    // the address to jump to (return `original` to resume normally).
+    let has_receiver = handler
+        .sig
+        .inputs
+        .iter()
+        .any(|arg| matches!(arg, syn::FnArg::Receiver(_)));
+    let returns_unit = match &handler.sig.output {
+        syn::ReturnType::Default => true,
+        syn::ReturnType::Type(_, ty) => {
+            matches!(&**ty, syn::Type::Tuple(tuple) if tuple.elems.is_empty())
+        }
+    };
+    let redirect = match (has_receiver, handler.sig.inputs.len(), returns_unit) {
+        (false, 1, true) => false,
+        (false, 2, false) => true,
+        _ => {
+            return syn::Error::new_spanned(
+                &handler.sig,
+                "#[mid_hook] handler must be either `fn(&mut grappler::Registers)` (resume) or \
+                 `fn(&mut grappler::Registers, original: usize) -> usize` (redirect)",
+            )
+            .to_compile_error()
+            .into();
+        }
+    };
 
     let name = &handler.sig.ident;
     let fn_vis = &handler.vis;
@@ -333,6 +362,35 @@ pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let maybe_offset = option_tokens(args.offset);
     let trace_label = name.to_string();
 
+    // Emit the trampoline matching the selected ilhook routine and pick the
+    // corresponding HookType. A redirect trampoline forwards the original
+    // continuation address and returns the handler's chosen jump target.
+    let (trampoline, hook_type) = if redirect {
+        (
+            quote! {
+                unsafe extern "win64" fn #trampoline_name(
+                    regs: *mut Registers,
+                    ori_func_ptr: usize,
+                    _user_data: usize,
+                ) -> usize {
+                    grappler::core::trace!("Executing mid hook: {}", #trace_label);
+                    #handler_name(unsafe { &mut *regs }, ori_func_ptr)
+                }
+            },
+            quote! { grappler::core::ilhook::x64::HookType::JmpToRet(#trampoline_name) },
+        )
+    } else {
+        (
+            quote! {
+                unsafe extern "win64" fn #trampoline_name(regs: *mut Registers, _user_data: usize) {
+                    grappler::core::trace!("Executing mid hook: {}", #trace_label);
+                    #handler_name(unsafe { &mut *regs });
+                }
+            },
+            quote! { grappler::core::ilhook::x64::HookType::JmpBack(#trampoline_name) },
+        )
+    };
+
     let tokens = quote! {
         #handler_fn
 
@@ -343,10 +401,7 @@ pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
             use grappler::core::Registers;
             use super::*;
 
-            unsafe extern "win64" fn #trampoline_name(regs: *mut Registers, _user_data: usize) {
-                grappler::core::trace!("Executing mid hook: {}", #trace_label);
-                #handler_name(unsafe { &mut *regs });
-            }
+            #trampoline
 
             pub struct #struct_name;
 
@@ -358,7 +413,7 @@ pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
 
                     let hooker = grappler::core::ilhook::x64::Hooker::new(
                         address,
-                        grappler::core::ilhook::x64::HookType::JmpBack(#trampoline_name),
+                        #hook_type,
                         grappler::core::ilhook::x64::CallbackOption::None,
                         0,
                         grappler::core::ilhook::x64::HookFlags::empty(),

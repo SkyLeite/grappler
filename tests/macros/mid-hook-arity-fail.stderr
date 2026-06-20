@@ -1,4 +1,4 @@
-error: #[mid_hook] handler must take exactly one argument: `&mut grappler::Registers`
+error: #[mid_hook] handler must be either `fn(&mut grappler::Registers)` (resume) or `fn(&mut grappler::Registers, original: usize) -> usize` (redirect)
  --> tests/macros/mid-hook-arity-fail.rs:2:5
   |
 2 | pub fn foo() {}

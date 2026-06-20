@@ -120,3 +120,16 @@ pub fn mid_hook_by_signature() {
 
     assert_eq!(test::my_mid.signature(), Some("AB CD"));
 }
+
+#[test]
+pub fn mid_hook_redirect_returns_address() {
+    mod test {
+        #[grappler::mid_hook(offset = 0x30)]
+        pub fn my_redirect(regs: &mut grappler::Registers, original: usize) -> usize {
+            regs.rax = 0;
+            original
+        }
+    }
+
+    assert_eq!(test::my_redirect.offset(), Some(0x30));
+}
