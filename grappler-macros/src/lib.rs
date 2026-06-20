@@ -36,7 +36,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
 
     let input = parse_macro_input!(item as ItemFn);
 
-    let _args = match MacroArgs::from_list(&attr_args) {
+    let args = match MacroArgs::from_list(&attr_args) {
         Ok(v) => v,
         Err(e) => {
             return TokenStream::from(e.write_errors());
@@ -63,7 +63,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         bail!("#[hook] cannot be applied to a function that takes `self`");
     }
 
-    match (&_args.signature, &_args.offset) {
+    match (&args.signature, &args.offset) {
         (None, None) => bail!("#[hook] requires either a `signature` or an `offset` argument"),
         (Some(signature), _) => {
             if signature.is_empty() {
@@ -93,7 +93,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     new_fn.sig.ident = format_ident!("__{}_original", name);
 
     let new_fn_name = &new_fn.sig.ident;
-    let new_fn_name_str = &new_fn.sig.ident.to_string();
+    let new_fn_name_str = new_fn.sig.ident.to_string();
 
     // Receivers (`self`) were rejected above, so every remaining argument is
     // a typed parameter.
@@ -121,8 +121,8 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
 
     // Argument validity (empty/known-byte signature, presence of a source) was
     // checked above, so the branches below are exhaustive.
-    let address_fn = if let Some(ref signature) = _args.signature {
-        let resolve_module = if let Some(ref module) = _args.module {
+    let address_fn = if let Some(ref signature) = args.signature {
+        let resolve_module = if let Some(ref module) = args.module {
             quote! { let module_name = #module; }
         } else {
             quote! {
@@ -138,7 +138,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             #resolve_module
             grappler::core::Signature::from_str(#signature)?.scan_module(module_name)?
         }
-    } else if let Some(ref offset) = _args.offset {
+    } else if let Some(ref offset) = args.offset {
         quote! {
             let this_proc = grappler::core::poggers::structures::process::Process::this_process();
             let base_module = this_proc.get_base_module()?;
@@ -152,8 +152,8 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         unreachable!("a missing signature and offset was rejected above");
     };
 
-    let maybe_signature = option_tokens(_args.signature.as_deref());
-    let maybe_offset = option_tokens(_args.offset);
+    let maybe_signature = option_tokens(args.signature.as_deref());
+    let maybe_offset = option_tokens(args.offset);
 
     let tokens = quote! {
         #new_fn
@@ -201,7 +201,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
                 }
 
                 pub fn signature(&self) -> Option<&str> {
-                    #maybe_signature.into()
+                    #maybe_signature
                 }
 
                 pub fn offset(&self) -> Option<usize> {
