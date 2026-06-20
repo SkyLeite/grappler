@@ -1,5 +1,5 @@
 error: Signature cannot be empty
- --> tests/macros/empty-signature-fail.rs:2:1
+ --> tests/macros/empty-signature-fail.rs:2:5
   |
 2 | pub fn foo() {}
-  | ^^^^^^^^^^^^^^^
+  |     ^^^^^^^^

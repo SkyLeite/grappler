@@ -1,5 +1,5 @@
 error: Signature must contain at least one known byte
- --> tests/macros/signature-no-known-bytes-fail.rs:2:1
+ --> tests/macros/signature-no-known-bytes-fail.rs:2:5
   |
 2 | pub fn foo() {}
-  | ^^^^^^^^^^^^^^^
+  |     ^^^^^^^^

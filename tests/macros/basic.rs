@@ -76,3 +76,23 @@ pub fn offset_matches() {
 
     assert_eq!(test::foo.offset(), Some(0x10));
 }
+
+#[test]
+pub fn passthrough_signature_hook_has_no_body() {
+    mod test {
+        #[grappler::hook(signature = "AB CD")]
+        pub fn foo(a: i32) -> i32;
+    }
+
+    assert_eq!(test::foo.signature(), Some("AB CD"));
+}
+
+#[test]
+pub fn passthrough_offset_hook_has_no_body() {
+    mod test {
+        #[grappler::hook(offset = 0x10)]
+        pub fn foo();
+    }
+
+    assert_eq!(test::foo.offset(), Some(0x10));
+}

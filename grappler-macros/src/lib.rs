@@ -4,7 +4,7 @@ use darling::{ast::NestedMeta, Error, FromMeta};
 use inflector::Inflector;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::{parse_macro_input, ItemFn};
+use syn::ItemFn;
 
 #[derive(Debug, FromMeta)]
 struct MacroArgs {
@@ -34,7 +34,24 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         }
     };
 
-    let input = parse_macro_input!(item as ItemFn);
+    // Accept either a normal function with a body, or a body-less signature
+    // declaration `fn foo(..) -> ..;` (parsed as a ForeignItemFn). The latter
+    // becomes a passthrough hook that just forwards to the original. When the
+    // item parses as neither, surface the more descriptive ItemFn error.
+    let (fn_vis, sig, original_fn) = match syn::parse::<ItemFn>(item.clone()) {
+        Ok(item_fn) => {
+            // Re-emit the user's function under a private name so the detour
+            // closure can call it.
+            let mut original = item_fn.clone();
+            original.sig.ident = format_ident!("__{}_original", item_fn.sig.ident);
+            (item_fn.vis, item_fn.sig, Some(original))
+        }
+        Err(item_err) => match syn::parse::<syn::ForeignItemFn>(item) {
+            Ok(foreign) => (foreign.vis, foreign.sig, None),
+            Err(_) => return item_err.to_compile_error().into(),
+        },
+    };
+    let passthrough = original_fn.is_none();
 
     let args = match MacroArgs::from_list(&attr_args) {
         Ok(v) => v,
@@ -48,14 +65,13 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     // "custom attribute panicked" diagnostic with no useful span).
     macro_rules! bail {
         ($msg:expr) => {
-            return syn::Error::new_spanned(&input, $msg)
+            return syn::Error::new_spanned(&sig, $msg)
                 .to_compile_error()
                 .into()
         };
     }
 
-    if input
-        .sig
+    if sig
         .inputs
         .iter()
         .any(|arg| matches!(arg, syn::FnArg::Receiver(_)))
@@ -76,10 +92,9 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         (None, Some(_)) => {}
     }
 
-    let name = &input.sig.ident;
-    let fn_vis = &input.vis;
-    let inputs = &input.sig.inputs;
-    let output = &input.sig.output;
+    let name = &sig.ident;
+    let inputs = &sig.inputs;
+    let output = &sig.output;
     let mod_name = format_ident!("__{}", name);
     let struct_name = format_ident!("__{}Hook", name.to_string().to_table_case());
     let spanned_struct = quote! {
@@ -87,13 +102,14 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     };
 
     let retour_fn_name = format_ident!("__{}Retour", name);
-    let retour_fn_abi = &input.sig.abi;
+    let retour_fn_abi = &sig.abi;
 
-    let mut new_fn = input.clone();
-    new_fn.sig.ident = format_ident!("__{}_original", name);
-
-    let new_fn_name = &new_fn.sig.ident;
-    let new_fn_name_str = new_fn.sig.ident.to_string();
+    // For a normal hook the original body is re-emitted under a private name;
+    // a passthrough has no body to emit.
+    let original_fn = match original_fn {
+        Some(original) => quote! { #original },
+        None => quote! {},
+    };
 
     // Receivers (`self`) were rejected above, so every remaining argument is
     // a typed parameter.
@@ -114,6 +130,17 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let input_names: Vec<_> = (0..input_types.len())
         .map(|i| format_ident!("__arg{}", i))
         .collect();
+
+    // The detour closure forwards its arguments to the original. A normal hook
+    // calls the user's renamed body; a passthrough calls the real original
+    // through the detour trampoline.
+    let trace_label = name.to_string();
+    let forward_call = if passthrough {
+        quote! { #retour_fn_name.call(#(#input_names),*) }
+    } else {
+        let original_name = format_ident!("__{}_original", name);
+        quote! { #original_name(#(#input_names),*) }
+    };
 
     let fn_sig = quote! {
         fn(#(#input_types),*) #output
@@ -156,7 +183,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let maybe_offset = option_tokens(args.offset);
 
     let tokens = quote! {
-        #new_fn
+        #original_fn
 
         #[doc(hidden)]
         mod #mod_name {
@@ -188,8 +215,8 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
 
                     unsafe {
                         #retour_fn_name.initialize(pointer, |#(#input_names),*| {
-                            grappler::core::trace!("Executing hook: {}", #new_fn_name_str);
-                            #new_fn_name(#(#input_names),*)
+                            grappler::core::trace!("Executing hook: {}", #trace_label);
+                            #forward_call
                         })?.enable()?;
                     }
 
