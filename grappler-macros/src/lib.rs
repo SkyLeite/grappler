@@ -25,6 +25,66 @@ fn option_tokens<T: quote::ToTokens>(opt: Option<T>) -> proc_macro2::TokenStream
     }
 }
 
+/// Validate that the attribute names a usable address source. On failure,
+/// returns `compile_error!` tokens spanned on `span`. Shared by `#[hook]` and
+/// `#[mid_hook]`.
+fn validate_args<T: quote::ToTokens>(
+    args: &MacroArgs,
+    span: &T,
+) -> Result<(), proc_macro2::TokenStream> {
+    let err = |msg: &str| Err(syn::Error::new_spanned(span, msg).to_compile_error());
+    match (&args.signature, &args.offset) {
+        (None, None) => return err("a hook requires either a `signature` or an `offset` argument"),
+        (Some(signature), _) => {
+            if signature.is_empty() {
+                return err("Signature cannot be empty");
+            }
+            if signature.replace([' ', '?'], "").is_empty() {
+                return err("Signature must contain at least one known byte");
+            }
+        }
+        (None, Some(_)) => {}
+    }
+    Ok(())
+}
+
+/// Build an expression that resolves the target address as a `usize`. Intended
+/// to be interpolated inside `unsafe { ... }` within a function returning a
+/// `Result` (it uses `?`). Assumes `validate_args` has already passed. Shared
+/// by `#[hook]` and `#[mid_hook]`.
+fn resolve_address_tokens(args: &MacroArgs) -> proc_macro2::TokenStream {
+    if let Some(ref signature) = args.signature {
+        let resolve_module = if let Some(ref module) = args.module {
+            quote! { let module_name = #module; }
+        } else {
+            quote! {
+                let exe = std::env::current_exe()?;
+                let module_name = exe
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or("hook: current executable has no valid UTF-8 file name")?;
+            }
+        };
+
+        quote! {
+            #resolve_module
+            grappler::core::Signature::from_str(#signature)?.scan_module(module_name)?
+        }
+    } else if let Some(ref offset) = args.offset {
+        quote! {
+            let this_proc = grappler::core::poggers::structures::process::Process::this_process();
+            let base_module = this_proc.get_base_module()?;
+            let base_addr = base_module.get_base_address();
+            base_addr
+                .checked_add(#offset)
+                .filter(|addr| *addr < base_module.get_end_address())
+                .ok_or("hook: offset resolves outside the base module")?
+        }
+    } else {
+        unreachable!("a missing signature and offset was rejected by validate_args");
+    }
+}
+
 #[proc_macro_attribute]
 pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     let attr_args = match NestedMeta::parse_meta_list(args.into()) {
@@ -63,33 +123,21 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
     // Validate the attribute up front and surface problems as proper spanned
     // compiler errors rather than panicking (a macro panic produces an opaque
     // "custom attribute panicked" diagnostic with no useful span).
-    macro_rules! bail {
-        ($msg:expr) => {
-            return syn::Error::new_spanned(&sig, $msg)
-                .to_compile_error()
-                .into()
-        };
-    }
-
     if sig
         .inputs
         .iter()
         .any(|arg| matches!(arg, syn::FnArg::Receiver(_)))
     {
-        bail!("#[hook] cannot be applied to a function that takes `self`");
+        return syn::Error::new_spanned(
+            &sig,
+            "#[hook] cannot be applied to a function that takes `self`",
+        )
+        .to_compile_error()
+        .into();
     }
 
-    match (&args.signature, &args.offset) {
-        (None, None) => bail!("#[hook] requires either a `signature` or an `offset` argument"),
-        (Some(signature), _) => {
-            if signature.is_empty() {
-                bail!("Signature cannot be empty");
-            }
-            if signature.replace([' ', '?'], "").is_empty() {
-                bail!("Signature must contain at least one known byte");
-            }
-        }
-        (None, Some(_)) => {}
+    if let Err(err) = validate_args(&args, &sig) {
+        return err.into();
     }
 
     let name = &sig.ident;
@@ -146,38 +194,7 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
         fn(#(#input_types),*) #output
     };
 
-    // Argument validity (empty/known-byte signature, presence of a source) was
-    // checked above, so the branches below are exhaustive.
-    let address_fn = if let Some(ref signature) = args.signature {
-        let resolve_module = if let Some(ref module) = args.module {
-            quote! { let module_name = #module; }
-        } else {
-            quote! {
-                let exe = std::env::current_exe()?;
-                let module_name = exe
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .ok_or("hook: current executable has no valid UTF-8 file name")?;
-            }
-        };
-
-        quote! {
-            #resolve_module
-            grappler::core::Signature::from_str(#signature)?.scan_module(module_name)?
-        }
-    } else if let Some(ref offset) = args.offset {
-        quote! {
-            let this_proc = grappler::core::poggers::structures::process::Process::this_process();
-            let base_module = this_proc.get_base_module()?;
-            let base_addr = base_module.get_base_address();
-            base_addr
-                .checked_add(#offset)
-                .filter(|addr| *addr < base_module.get_end_address())
-                .ok_or("hook: offset resolves outside the base module")?
-        }
-    } else {
-        unreachable!("a missing signature and offset was rejected above");
-    };
+    let address_fn = resolve_address_tokens(&args);
 
     let maybe_signature = option_tokens(args.signature.as_deref());
     let maybe_offset = option_tokens(args.offset);
@@ -225,6 +242,136 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
 
                 pub fn call_original(&self, #(#input_names: #input_types),*) #output {
                     #retour_fn_name.call(#(#input_names),*)
+                }
+
+                pub fn signature(&self) -> Option<&str> {
+                    #maybe_signature
+                }
+
+                pub fn offset(&self) -> Option<usize> {
+                    #maybe_offset
+                }
+            }
+        }
+
+        #[allow(non_upper_case_globals)] #fn_vis const #name: #spanned_struct = #spanned_struct {};
+    };
+
+    TokenStream::from(tokens)
+}
+
+/// Install a mid-function hook at an arbitrary in-body address.
+///
+/// Unlike `#[hook]`, the annotated function is a *handler* that receives the
+/// captured CPU register state and resumes the original code afterwards — there
+/// is no original function to call. It must take exactly one argument, a
+/// `&mut grappler::Registers`, and return nothing:
+///
+/// ```ignore
+/// #[grappler::mid_hook(offset = 0x1234)]
+/// fn my_hook(regs: &mut grappler::Registers) {
+///     regs.rax = 1337;
+/// }
+///
+/// my_hook.initialize()?;
+/// ```
+#[proc_macro_attribute]
+pub fn mid_hook(args: TokenStream, item: TokenStream) -> TokenStream {
+    let attr_args = match NestedMeta::parse_meta_list(args.into()) {
+        Ok(v) => v,
+        Err(e) => {
+            return TokenStream::from(Error::from(e).write_errors());
+        }
+    };
+
+    let handler = match syn::parse::<ItemFn>(item) {
+        Ok(handler) => handler,
+        Err(err) => return err.to_compile_error().into(),
+    };
+
+    let args = match MacroArgs::from_list(&attr_args) {
+        Ok(v) => v,
+        Err(e) => {
+            return TokenStream::from(e.write_errors());
+        }
+    };
+
+    if let Err(err) = validate_args(&args, &handler.sig) {
+        return err.into();
+    }
+
+    // The handler is the destination called with the register context, so it
+    // must take exactly one argument (`&mut Registers`) and no receiver.
+    if handler.sig.inputs.len() != 1
+        || matches!(handler.sig.inputs.first(), Some(syn::FnArg::Receiver(_)))
+    {
+        return syn::Error::new_spanned(
+            &handler.sig,
+            "#[mid_hook] handler must take exactly one argument: `&mut grappler::Registers`",
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let name = &handler.sig.ident;
+    let fn_vis = &handler.vis;
+    let mod_name = format_ident!("__{}", name);
+    let struct_name = format_ident!("__{}Hook", name.to_string().to_table_case());
+    let spanned_struct = quote! {
+        #mod_name::#struct_name
+    };
+    let trampoline_name = format_ident!("__{}_trampoline", name);
+
+    // Re-emit the user's handler under a private name so the trampoline can call
+    // it; the trampoline is what ilhook invokes with the raw register pointer.
+    let mut handler_fn = handler.clone();
+    handler_fn.sig.ident = format_ident!("__{}_handler", name);
+    let handler_name = &handler_fn.sig.ident;
+
+    let address_fn = resolve_address_tokens(&args);
+    let maybe_signature = option_tokens(args.signature.as_deref());
+    let maybe_offset = option_tokens(args.offset);
+    let trace_label = name.to_string();
+
+    let tokens = quote! {
+        #handler_fn
+
+        #[doc(hidden)]
+        mod #mod_name {
+            use std::str::FromStr;
+            use grappler::core::poggers::structures::process::implement::utils::ProcessUtils as _;
+            use grappler::core::Registers;
+            use super::*;
+
+            unsafe extern "win64" fn #trampoline_name(regs: *mut Registers, _user_data: usize) {
+                grappler::core::trace!("Executing mid hook: {}", #trace_label);
+                #handler_name(unsafe { &mut *regs });
+            }
+
+            pub struct #struct_name;
+
+            impl #struct_name {
+                pub fn initialize(&self) -> Result<(), Box<dyn std::error::Error>> {
+                    let address: usize = unsafe {
+                        #address_fn
+                    };
+
+                    let hooker = grappler::core::ilhook::x64::Hooker::new(
+                        address,
+                        grappler::core::ilhook::x64::HookType::JmpBack(#trampoline_name),
+                        grappler::core::ilhook::x64::CallbackOption::None,
+                        0,
+                        grappler::core::ilhook::x64::HookFlags::empty(),
+                    );
+
+                    let hook_point = unsafe { hooker.hook()? };
+
+                    // The hook stays installed for the life of the process;
+                    // leak the HookPoint so its Drop (which would unhook) never
+                    // runs.
+                    std::mem::forget(hook_point);
+
+                    Ok(())
                 }
 
                 pub fn signature(&self) -> Option<&str> {

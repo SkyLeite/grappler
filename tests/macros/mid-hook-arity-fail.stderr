@@ -1,0 +1,5 @@
+error: #[mid_hook] handler must take exactly one argument: `&mut grappler::Registers`
+ --> tests/macros/mid-hook-arity-fail.rs:2:5
+  |
+2 | pub fn foo() {}
+  |     ^^^^^^^^

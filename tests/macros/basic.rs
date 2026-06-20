@@ -96,3 +96,27 @@ pub fn passthrough_offset_hook_has_no_body() {
 
     assert_eq!(test::foo.offset(), Some(0x10));
 }
+
+#[test]
+pub fn mid_hook_by_offset() {
+    mod test {
+        #[grappler::mid_hook(offset = 0x20)]
+        pub fn my_mid(regs: &mut grappler::Registers) {
+            regs.rax = 1337;
+        }
+    }
+
+    assert_eq!(test::my_mid.offset(), Some(0x20));
+}
+
+#[test]
+pub fn mid_hook_by_signature() {
+    mod test {
+        #[grappler::mid_hook(signature = "AB CD")]
+        pub fn my_mid(regs: &mut grappler::Registers) {
+            let _ = regs;
+        }
+    }
+
+    assert_eq!(test::my_mid.signature(), Some("AB CD"));
+}

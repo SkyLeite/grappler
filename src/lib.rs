@@ -1,5 +1,6 @@
 pub use grappler_core as core;
-pub use grappler_macros::hook;
+pub use grappler_core::Registers;
+pub use grappler_macros::{hook, mid_hook};
 
 #[cfg(target_os = "windows")]
 pub fn write_at_offset(data: &[u8], offset: usize) -> Result<(), Box<dyn std::error::Error>> {
