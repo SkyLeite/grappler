@@ -10,6 +10,10 @@ use syn::{parse_macro_input, ItemFn};
 struct MacroArgs {
     signature: Option<String>,
     offset: Option<usize>,
+    /// Module to scan for `signature`. Defaults to the current executable;
+    /// set it to target a function that lives in a loaded library, e.g.
+    /// `#[hook(signature = "...", module = "d3d11.dll")]`.
+    module: Option<String>,
 }
 
 #[proc_macro_attribute]
@@ -80,12 +84,20 @@ pub fn hook(args: TokenStream, item: TokenStream) -> TokenStream {
             panic!("Signature must contain at least one known byte");
         }
 
+        let resolve_module = if let Some(ref module) = _args.module {
+            quote! { let module_name = #module; }
+        } else {
+            quote! {
+                let exe = std::env::current_exe()?;
+                let module_name = exe
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .ok_or("hook: current executable has no valid UTF-8 file name")?;
+            }
+        };
+
         quote! {
-            let exe = std::env::current_exe()?;
-            let module_name = exe
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or("hook: current executable has no valid UTF-8 file name")?;
+            #resolve_module
             grappler::core::Signature::from_str(#signature)?.scan_module(module_name)?
         }
     } else if let Some(ref offset) = _args.offset {
