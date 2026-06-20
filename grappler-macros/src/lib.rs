@@ -68,7 +68,13 @@ fn resolve_address_tokens(args: &MacroArgs) -> proc_macro2::TokenStream {
 
         quote! {
             #resolve_module
-            grappler::core::Signature::from_str(#signature)?.scan_module(module_name)?
+            // skidscan's errors don't implement std::error::Error, so map them
+            // to a string before propagating. scan_module yields a *mut u8;
+            // normalise to usize so both resolution paths return the same type.
+            grappler::core::Signature::from_str(#signature)
+                .map_err(|e| format!("hook: invalid signature {:?}: {:?}", #signature, e))?
+                .scan_module(module_name)
+                .map_err(|e| format!("hook: signature scan failed: {:?}", e))? as usize
         }
     } else if let Some(ref offset) = args.offset {
         quote! {

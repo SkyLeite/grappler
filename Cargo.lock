@@ -299,7 +299,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a793df0d7afeac54f95b471d3af7f0d4fb975699f972341a4b76988d49cdf0c"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.5",
+ "windows-targets 0.53.5",
 ]
 
 [[package]]
@@ -489,8 +489,9 @@ dependencies = [
 
 [[package]]
 name = "retour"
-version = "0.4.0-alpha.3"
-source = "git+https://github.com/Hpmason/retour-rs.git#ab23ee227f49bf945096d4aeb207c1be80c37c8e"
+version = "0.4.0-alpha.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ead4bc8e12d553ff70769c5f5c21f5f4f0e73c0018068a6bb5a3d7d3b9e57ec7"
 dependencies = [
  "cfg-if",
  "generic-array",

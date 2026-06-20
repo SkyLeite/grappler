@@ -51,9 +51,10 @@ pub fn has_same_scope_as_original_fn() {
 #[test]
 pub fn can_use_extern_attribute() {
     mod test {
-        #![allow(unsupported_calling_conventions)]
+        // win64 is the x86_64 calling convention retour implements; fastcall /
+        // stdcall / thiscall are x86-only.
         #[grappler::hook(signature = "AB CD")]
-        pub extern "fastcall" fn foo_fastcall() {}
+        pub extern "win64" fn foo_winapi() {}
     }
 }
 

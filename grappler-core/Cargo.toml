@@ -10,6 +10,6 @@ authors.workspace = true
 [dependencies]
 ilhook = "2.3.0"
 poggers = "1.2.1"
-retour = { git = "https://github.com/Hpmason/retour-rs.git", features = ["static-detour", "28-args", "thiscall-abi", "nightly"], version = "0.4.0-alpha.3" }
+retour = { version = "0.4.0-alpha.4", features = ["static-detour", "28-args"] }
 skidscan = "2.0.1"
 tracing = "0.1.40"
