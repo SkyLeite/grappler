@@ -1,3 +1,4 @@
 .direnv/
 target/
 grappler-macros/target/
+docs/
