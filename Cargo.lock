@@ -184,7 +184,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "grappler"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "grappler-core",
  "grappler-macros",
@@ -193,7 +193,7 @@ dependencies = [
 
 [[package]]
 name = "grappler-core"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "ilhook",
  "poggers",
@@ -204,11 +204,10 @@ dependencies = [
 
 [[package]]
 name = "grappler-macros"
-version = "0.1.10"
+version = "0.1.11"
 dependencies = [
  "Inflector",
  "darling",
- "grappler-core",
  "proc-macro2",
  "quote",
  "syn 2.0.101",
